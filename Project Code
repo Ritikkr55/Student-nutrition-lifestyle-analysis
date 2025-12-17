@@ -1,0 +1,187 @@
+#STUDENT NUTRITION AND LIFESTYLE ANALYSIS PROJECT
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.cluster import KMeans
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+    accuracy_score,
+    confusion_matrix
+)
+
+sns.set(style="whitegrid")
+df = pd.read_csv("C:/Users/ritik/Downloads/Pred Form DataSet.csv")
+
+
+# DATA PREPROCESSING
+le = LabelEncoder()
+for col in df.select_dtypes(include="object").columns:
+    df[col] = le.fit_transform(df[col])
+
+# OBJECTIVE 1: Diet Type vs Monthly Food Expense
+X1 = df[["Diet type"]]
+y1 = df["Monthly food expense"]
+
+X1_train, X1_test, y1_train, y1_test = train_test_split(
+    X1, y1, test_size=0.2, random_state=42
+)
+
+lr1 = LinearRegression()
+lr1.fit(X1_train, y1_train)
+y1_pred = lr1.predict(X1_test)
+
+print("\nREGRESSION METRICS – OBJECTIVE 1")
+print("MAE :", mean_absolute_error(y1_test, y1_pred))
+print("MSE :", mean_squared_error(y1_test, y1_pred))
+print("RMSE:", np.sqrt(mean_squared_error(y1_test, y1_pred)))
+print("R²  :", r2_score(y1_test, y1_pred))
+
+plt.figure(figsize=(6,4))
+sns.barplot(x=df["Diet type"], y=df["Monthly food expense"], estimator=np.mean)
+5
+plt.xticks(
+    ticks=[0,1,2,3],
+    labels=["Vegetarian", "Non-Vegetarian", "Vegan", "Eggetarian"]
+)
+
+plt.yticks(
+    ticks=[0,1,2,3],
+    labels=["₹0–2k", "₹2k–4k", "₹4k–6k", "₹6k+"]
+)
+
+plt.title("Diet Type vs Monthly Food Expense")
+plt.xlabel("Diet Type")
+plt.ylabel("Monthly Food Expense (₹ Range)")
+plt.show()
+
+# OBJECTIVE 2: Junk Food Intake vs Monthly Food Expense
+X2 = df[["Weekly junk food intake"]]
+y2 = df["Monthly food expense"]
+
+X2_train, X2_test, y2_train, y2_test = train_test_split(
+    X2, y2, test_size=0.2, random_state=42
+)
+
+lr2 = LinearRegression()
+lr2.fit(X2_train, y2_train)
+
+plt.figure(figsize=(6,4))
+plt.scatter(X2, y2, alpha=0.5)
+plt.plot(X2, lr2.predict(X2), color="red")
+
+plt.xticks(
+    ticks=[0,1,2,3],
+    labels=["Rarely", "Sometimes", "Often", "Very Often"]
+)
+
+plt.yticks(
+    ticks=[0,1,2,3],
+    labels=["₹0–2k", "₹2k–4k", "₹4k–6k", "₹6k+"]
+)
+
+plt.title("Junk Food Intake vs Monthly Food Expense")
+plt.xlabel("Weekly Junk Food Intake")
+plt.ylabel("Monthly Food Expense (₹ Range)")
+plt.show()
+
+# OBJECTIVE 3: Predict Exercise Habit
+X3 = df[
+    ["Average sleep duration",
+     "Weekly junk food intake",
+     "Water intake per day (litres)",
+     "Age"]
+]
+
+y3 = (df["Exercise days per week"] >
+      df["Exercise days per week"].median()).astype(int)
+
+X3_train, X3_test, y3_train, y3_test = train_test_split(
+    X3, y3, test_size=0.2, random_state=42
+)
+
+scaler = StandardScaler()
+X3_train_scaled = scaler.fit_transform(X3_train)
+X3_test_scaled = scaler.transform(X3_test)
+
+log_model = LogisticRegression(max_iter=1000)
+log_model.fit(X3_train_scaled, y3_train)
+y3_pred = log_model.predict(X3_test_scaled)
+
+print("\nCLASSIFICATION METRICS – OBJECTIVE 3")
+print("Accuracy:", accuracy_score(y3_test, y3_pred))
+print("Confusion Matrix:\n", confusion_matrix(y3_test, y3_pred))
+
+# FEATURE IMPORTANCE 
+features = X3.columns
+coeffs = log_model.coef_[0]
+colors = ["green" if c > 0 else "red" for c in coeffs]
+
+plt.figure(figsize=(6,4))
+plt.barh(features, coeffs, color=colors)
+plt.axvline(0, color="black")
+plt.title("Effect of Lifestyle Factors on Exercise Habit")
+plt.xlabel("Positive / Negative Effect")
+plt.ylabel("Lifestyle Factors")
+plt.show()
+
+# FPROBABILITY CURVE
+sleep_vals = np.linspace(4, 9, 100)
+
+X_prob = pd.DataFrame(
+    np.tile(X3.mean().values, (100, 1)),
+    columns=X3.columns
+)
+
+X_prob["Average sleep duration"] = sleep_vals
+X_prob_scaled = scaler.transform(X_prob)
+prob = log_model.predict_proba(X_prob_scaled)[:, 1]
+
+plt.figure(figsize=(6,4))
+plt.plot(sleep_vals, prob)
+plt.title("Probability of Regular Exercise vs Sleep Duration")
+plt.xlabel("Average Sleep Duration (Hours)")
+plt.ylabel("Probability of Regular Exercise")
+plt.show()
+
+# OBJECTIVE 4: Student Spending Patterns (K-Means)
+X_cluster = df[["Age", "Monthly food expense"]]
+
+kmeans = KMeans(n_clusters=3, random_state=42)
+clusters = kmeans.fit_predict(X_cluster)
+
+plt.figure(figsize=(6,4))
+plt.scatter(
+    X_cluster["Age"],
+    X_cluster["Monthly food expense"],
+    c=clusters,
+    s=100,
+    alpha=0.6
+)
+
+plt.yticks(
+    ticks=[0,1,2,3],
+    labels=["₹0–2k", "₹2k–4k", "₹4k–6k", "₹6k+"]
+)
+
+plt.scatter(
+    kmeans.cluster_centers_[:, 0],
+    kmeans.cluster_centers_[:, 1],
+    c="red",
+    marker="X",
+    s=200,
+    label="Centroids"
+)
+
+plt.title("Student Spending Patterns (K-Means)")
+plt.xlabel("Age")
+plt.ylabel("Monthly Food Expense (₹ Range)")
+plt.legend()
+plt.show()
